@@ -1,0 +1,41 @@
+import mysql.connector
+from mysql.connector import errorcode
+
+from app.core.db import get_connection
+from app.core.schema_assumptions import build_account_insert_sql
+from app.core.service_errors import ServiceError
+from app.models.requests import AccountCreateRequest
+
+
+def create_account(payload: AccountCreateRequest) -> int:
+    values = (payload.user_id, payload.vpa, payload.initial_balance)
+    check_constraint_errno = getattr(errorcode, "ER_CHECK_CONSTRAINT_VIOLATED", 3819)
+
+    try:
+        with get_connection() as connection:
+            cursor = connection.cursor(prepared=True)
+            try:
+                cursor.execute(build_account_insert_sql(), values)
+                connection.commit()
+                return cursor.lastrowid
+            finally:
+                cursor.close()
+    except mysql.connector.IntegrityError as err:
+        if err.errno == errorcode.ER_DUP_ENTRY:
+            message = (err.msg or "").lower()
+            if "vpa" in message:
+                raise ServiceError(status_code=409, detail="VPA already exists.") from err
+            raise ServiceError(status_code=409, detail="Duplicate account data.") from err
+
+        if err.errno == errorcode.ER_NO_REFERENCED_ROW_2:
+            raise ServiceError(status_code=400, detail="User does not exist for the provided user_id.") from err
+
+        if err.errno == check_constraint_errno:
+            raise ServiceError(status_code=400, detail="Check constraint violated.") from err
+
+        raise ServiceError(status_code=400, detail="Invalid account input for current DB schema.") from err
+    except mysql.connector.Error as err:
+        raise ServiceError(
+            status_code=500,
+            detail=f"Database failure during account creation: {err.msg}",
+        ) from err
