@@ -31,8 +31,10 @@ const normalizeUser = (rawUser) => {
 
   return {
     ...rawUser,
+    mobileNumber: rawUser.mobileNumber || rawUser.mobile_number || rawUser.phone || null,
+    displayName: rawUser.displayName || rawUser.display_name || rawUser.mobileNumber || rawUser.mobile_number || rawUser.phone || null,
     accounts,
-    activeAccountId: rawUser.activeAccountId || accounts[0]?.id || null,
+    activeAccountId: rawUser.activeAccountId || rawUser.active_account_id || accounts[0]?.id || null,
   };
 };
 
@@ -118,6 +120,30 @@ export const UserProvider = ({ children }) => {
     });
   };
 
+  const updateBalance = (accountIdOrVpa, newBalance) => {
+    setUser((prevUser) => {
+      if (!prevUser) return prevUser;
+
+      const updatedAccounts = (prevUser.accounts || []).map((account) => {
+        const matches = String(account.id) === String(accountIdOrVpa) || account.vpa === accountIdOrVpa;
+        return matches ? { ...account, balance: newBalance } : account;
+      });
+
+      const updatedUser = {
+        ...prevUser,
+        accounts: updatedAccounts,
+      };
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      return updatedUser;
+    });
+  };
+
+  const refreshAccountBalance = (accountId, newBalance) => {
+    // Update a single account's balance
+    updateBalance(accountId, newBalance);
+  };
+
   const logout = () => {
     setUser(null);
     isSetAuthenticated(false);
@@ -135,6 +161,8 @@ export const UserProvider = ({ children }) => {
     logout,
     setActiveAccount,
     addAccount,
+    updateBalance,
+    refreshAccountBalance,
   };
 
   return (

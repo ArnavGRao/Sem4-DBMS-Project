@@ -1,14 +1,70 @@
-import React, { useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
+import Breadcrumb from '../components/Breadcrumb';
+import { buildAccountVpa, requestJson, addBalanceToAccount, getAccountDetails } from '../lib/api';
 
 const Dashboard = () => {
-  const { user, setActiveAccount, addAccount } = useUser();
+  const navigate = useNavigate();
+  const { user, setActiveAccount, addAccount, logout, updateBalance, refreshAccountBalance } = useUser();
   const location = useLocation();
   const [creatingType, setCreatingType] = useState('');
   const [creatingAccount, setCreatingAccount] = useState(false);
-  const [accountError, setAccountError] = useState('');
-  const [accountSuccess, setAccountSuccess] = useState('');
+  const [showAddBalanceModal, setShowAddBalanceModal] = useState(false);
+  const [addBalanceAmount, setAddBalanceAmount] = useState('');
+  const [addBalanceLoading, setAddBalanceLoading] = useState(false);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
+
+    const { showSuccess, showError } = useToast();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const handleRefreshBalance = async () => {
+    if (!activeAccount?.id) return;
+    
+    setRefreshingBalance(true);
+    try {
+      const details = await getAccountDetails(activeAccount.id);
+      refreshAccountBalance(activeAccount.id, parseFloat(details.balance));
+      showSuccess('Balance refreshed!');
+    } catch (err) {
+      console.error('Failed to refresh balance:', err);
+      showError('Failed to refresh balance');
+    } finally {
+      setRefreshingBalance(false);
+    }
+  };
+
+  const handleAddBalance = async () => {
+    if (!addBalanceAmount || parseFloat(addBalanceAmount) <= 0) {
+      showError('Please enter a valid amount greater than 0');
+      return;
+    }
+
+    setAddBalanceLoading(true);
+
+    try {
+      const result = await addBalanceToAccount(activeAccount.id, parseFloat(addBalanceAmount));
+      
+      // Update balance in context
+      updateBalance(activeAccount.id, parseFloat(result.new_balance));
+      
+      // Reset modal
+      setShowAddBalanceModal(false);
+      setAddBalanceAmount('');
+      
+      // Show confirmation
+      showSuccess(`Added ₹${parseFloat(addBalanceAmount).toFixed(2)} to account!`);
+    } catch (err) {
+      showError(err.message || 'Failed to add balance');
+    } finally {
+      setAddBalanceLoading(false);
+    }
+  };
 
   const accounts = Array.isArray(user?.accounts)
     ? user.accounts
@@ -20,63 +76,43 @@ const Dashboard = () => {
     accounts[0] ||
     null;
 
-  const accountPayloadByType = useMemo(
-    () => ({
-      personal: {
-        account_type: 'personal',
-        account_name: 'Personal Account',
-      },
-      business: {
-        account_type: 'business',
-        account_name: 'Business Account',
-      },
-    }),
-    []
-  );
-
   const handleAccountChange = (e) => {
     setActiveAccount(e.target.value);
   };
 
+  const buildNewAccountVpa = (type) => {
+    const baseMobileNumber = user?.mobileNumber || user?.displayName || activeAccount?.vpa?.split('@')[0] || 'account';
+    const accountIndex = accounts.length + 1;
+
+    return buildAccountVpa(baseMobileNumber, type, accountIndex);
+  };
+
   const createAccount = async (type) => {
-    setAccountError('');
-    setAccountSuccess('');
     setCreatingType(type);
     setCreatingAccount(true);
 
     try {
-      const accountTemplate = accountPayloadByType[type];
-      const response = await fetch('http://localhost:8000/api/accounts/create', {
+      const generatedVpa = buildNewAccountVpa(type);
+      const data = await requestJson('/api/accounts/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           user_id: user?.id,
-          ...accountTemplate,
+          vpa: generatedVpa,
+          initial_balance: 0,
         }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to create account');
-      }
-
-      const data = await response.json();
       const newAccount = {
-        id: data.account_id || data.id || data.vpa,
-        name: data.account_name || accountTemplate.account_name,
-        vpa: data.vpa,
+        id: data.account_id || data.id || generatedVpa,
+        name: type === 'business' ? 'Business Account' : 'Personal Account',
+        vpa: generatedVpa,
+        balance: '0.00',
+        status: 'Active',
       };
 
-      if (!newAccount.vpa) {
-        throw new Error('API did not return a VPA for the new account');
-      }
-
       addAccount(newAccount);
-      setAccountSuccess(`${newAccount.name} created: ${newAccount.vpa}`);
+      showSuccess(`${newAccount.name} created: ${newAccount.vpa}`);
     } catch (err) {
-      setAccountError(err.message || 'Account creation failed.');
+      showError(err.message || 'Account creation failed.');
     } finally {
       setCreatingType('');
       setCreatingAccount(false);
@@ -84,27 +120,24 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-md mx-auto p-4">
-        {/* Top Navigation */}
-        <div className="bg-white rounded-lg p-2 shadow mb-4 mt-2">
+    <div className="app-shell">
+      <div className="page-enter mx-auto w-full max-w-5xl">
+        {location.pathname === '/dashboard' && <Breadcrumb items={[{ label: 'Dashboard' }]} />}
+
+        <div className="ui-panel mb-4 p-2">
           <div className="grid grid-cols-2 gap-2">
             <Link
               to="/dashboard"
-              className={`py-2 text-center rounded-md text-sm font-medium transition-colors ${
-                location.pathname === '/dashboard'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+              className={`rounded-xl py-2 text-center text-sm font-semibold transition-colors ${
+                location.pathname === '/dashboard' ? 'bg-cyan-700 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               Home
             </Link>
             <Link
               to="/history"
-              className={`py-2 text-center rounded-md text-sm font-medium transition-colors ${
-                location.pathname === '/history'
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+              className={`rounded-xl py-2 text-center text-sm font-semibold transition-colors ${
+                location.pathname === '/history' ? 'bg-cyan-700 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               History
@@ -112,95 +145,162 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-white/65 p-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">
-              Hello, {user?.firstName}
-            </h1>
-            <p className="text-gray-600 text-sm">Welcome back</p>
+            <h1 className="ui-title text-2xl sm:text-3xl">Hello, {user?.mobileNumber || 'User'}</h1>
+            <p className="ui-subtle text-sm">Manage accounts, transfer funds, and track balances.</p>
           </div>
-          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-semibold">
-            {user?.firstName?.[0] || 'U'}
-          </div>
-        </div>
-
-        {/* Balance Card - Placeholder */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white rounded-lg p-6 mb-6 shadow-lg">
-          <p className="text-sm opacity-90">Balance</p>
-          <h2 className="text-4xl font-bold mt-2">₹ ****</h2>
-
-          {accounts.length > 1 ? (
-            <div className="mt-4">
-              <label className="block text-xs uppercase tracking-wide opacity-80 mb-1">
-                Select Account
-              </label>
-              <select
-                value={activeAccountId}
-                onChange={handleAccountChange}
-                className="w-full bg-blue-700 border border-blue-400 rounded-md px-3 py-2 text-sm text-white focus:outline-none"
-              >
-                {accounts.map((account, index) => (
-                  <option key={account.id || account.vpa || index} value={account.id || account.vpa}>
-                    {account.name || `Account ${index + 1}`} - {account.vpa}
-                  </option>
-                ))}
-              </select>
+          <div className="flex items-center gap-2">
+            <div className="grid h-11 w-11 place-items-center rounded-full bg-cyan-700 text-sm font-bold text-white">
+              {(user?.mobileNumber || 'U')[0]}
             </div>
-          ) : (
-            <p className="text-sm mt-4 opacity-75">{activeAccount?.vpa || 'No VPA found'}</p>
-          )}
-
-          {accounts.length > 1 && (
-            <p className="text-sm mt-3 opacity-75">Active VPA: {activeAccount?.vpa || 'N/A'}</p>
-          )}
+            <button onClick={handleLogout} className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700">
+              Logout
+            </button>
+          </div>
         </div>
 
-        {/* Quick Action */}
-        <div className="mb-6">
-          <Link to="/transfer" className="block bg-white p-4 rounded-lg shadow text-center hover:shadow-md transition">
-            <div className="text-2xl mb-2">📤</div>
-            <p className="text-sm font-medium">Send Money</p>
+        <div className="rounded-3xl bg-gradient-to-br from-cyan-700 via-cyan-800 to-slate-900 p-6 text-white shadow-[0_22px_40px_rgba(15,127,143,0.35)]">
+          <div className="mb-8 flex items-start justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-cyan-100">Available Balance</p>
+              <h2 className="mt-3 text-4xl font-semibold sm:text-5xl">
+                ₹ {activeAccount?.balance ? parseFloat(activeAccount.balance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+              </h2>
+            </div>
+            <button
+              onClick={handleRefreshBalance}
+              disabled={refreshingBalance}
+              className="rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/20 disabled:opacity-60"
+              title="Refresh balance"
+            >
+              {refreshingBalance ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-white/25 bg-white/10 p-3">
+            {accounts.length > 1 ? (
+              <div>
+                <label className="mb-2 block text-xs uppercase tracking-[0.14em] text-cyan-100">Select Account</label>
+                <select
+                  value={activeAccountId}
+                  onChange={handleAccountChange}
+                  className="w-full rounded-lg border border-white/35 bg-slate-900/25 px-3 py-2 text-sm text-white outline-none"
+                >
+                  {accounts.map((account, index) => (
+                    <option key={account.id || account.vpa || index} value={account.id || account.vpa} className="text-slate-900">
+                      {account.name || `Account ${index + 1}`} - {account.vpa}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-cyan-100">VPA</span>
+                <span className="font-semibold">{activeAccount?.vpa || 'No VPA found'}</span>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => setShowAddBalanceModal(true)}
+            className="mt-4 w-full rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-cyan-800 hover:bg-cyan-50"
+          >
+            + Add Money
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Link to="/transfer" className="ui-panel block p-5 transition-transform hover:-translate-y-0.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-cyan-700">Quick Action</p>
+            <p className="mt-2 text-xl font-semibold text-slate-900">Send Money</p>
+            <p className="mt-1 text-sm text-slate-500">Transfer funds instantly to any VPA.</p>
           </Link>
+
+          <div className="ui-panel p-5">
+            <h3 className="text-base font-semibold text-slate-900">Create New Account</h3>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => createAccount('personal')}
+                disabled={creatingAccount}
+                className="btn-soft px-3 py-2 text-sm"
+              >
+                {creatingType === 'personal' && creatingAccount ? 'Creating...' : 'Personal'}
+              </button>
+              <button
+                type="button"
+                onClick={() => createAccount('business')}
+                disabled={creatingAccount}
+                className="btn-brand px-3 py-2 text-sm"
+              >
+                {creatingType === 'business' && creatingAccount ? 'Creating...' : 'Business'}
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Create Accounts */}
-        <div className="bg-white rounded-lg p-4 shadow mb-6">
-          <h3 className="font-semibold text-gray-800 mb-3">Create New Account</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => createAccount('personal')}
-              disabled={creatingAccount}
-              className="px-3 py-2 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-            >
-              {creatingType === 'personal' && creatingAccount ? 'Creating...' : 'New Personal VPA'}
-            </button>
-            <button
-              type="button"
-              onClick={() => createAccount('business')}
-              disabled={creatingAccount}
-              className="px-3 py-2 rounded-md bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {creatingType === 'business' && creatingAccount ? 'Creating...' : 'New Business VPA'}
-            </button>
-          </div>
-          {accountError && (
-            <p className="text-sm text-red-600 mt-3">{accountError}</p>
-          )}
-          {accountSuccess && (
-            <p className="text-sm text-green-600 mt-3">{accountSuccess}</p>
-          )}
-        </div>
-
-        {/* Recent Activity - Placeholder */}
-        <div className="bg-white rounded-lg p-4 shadow">
-          <h3 className="font-semibold text-gray-800 mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            <p className="text-gray-500 text-sm text-center py-4">No recent transactions</p>
-          </div>
+        <div className="ui-panel mt-4 p-5">
+          <h3 className="text-base font-semibold text-slate-900">Recent Activity</h3>
+          <p className="mt-4 rounded-xl bg-slate-50 py-8 text-center text-sm text-slate-500">No recent transactions</p>
         </div>
       </div>
+
+      {showAddBalanceModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/35 p-4 backdrop-blur-sm">
+          <div className="ui-panel page-enter w-full max-w-md p-6">
+            <div className="mb-4 flex items-start justify-between">
+              <h2 className="text-2xl font-semibold text-slate-900">Add Money</h2>
+              <button
+                onClick={() => {
+                  setShowAddBalanceModal(false);
+                  setAddBalanceAmount('');
+                }}
+                className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="mb-4 text-sm text-slate-600">
+              VPA: <span className="font-semibold text-slate-900">{activeAccount?.vpa || 'N/A'}</span>
+            </p>
+
+            <div className="mb-5">
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">Amount to Add (₹)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={addBalanceAmount}
+                onChange={(e) => setAddBalanceAmount(e.target.value)}
+                placeholder="Enter amount"
+                className="ui-input"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAddBalanceModal(false);
+                  setAddBalanceAmount('');
+                }}
+                className="btn-soft flex-1 px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBalance}
+                disabled={addBalanceLoading}
+                className="btn-brand flex flex-1 items-center justify-center gap-2 px-4 py-2"
+              >
+                {addBalanceLoading && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+                {addBalanceLoading ? 'Adding...' : 'Add Money'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

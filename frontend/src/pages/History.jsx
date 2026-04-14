@@ -1,33 +1,45 @@
 import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import Breadcrumb from '../components/Breadcrumb';
 
 const History = () => {
+  const navigate = useNavigate();
+
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-md mx-auto">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">Transaction History</h1>
-        
-        {/* Filter Bar */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-medium whitespace-nowrap">
-            All
-          </button>
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-full text-sm font-medium whitespace-nowrap hover:bg-gray-50">
-            Sent
-          </button>
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-full text-sm font-medium whitespace-nowrap hover:bg-gray-50">
-            Received
-          </button>
-          <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-full text-sm font-medium whitespace-nowrap hover:bg-gray-50">
-            Failed
+    <div className="app-shell">
+      <div className="page-enter mx-auto w-full max-w-4xl">
+        <Breadcrumb
+          items={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'History' },
+          ]}
+        />
+
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h1 className="ui-title text-3xl">Transaction History</h1>
+            <p className="ui-subtle mt-1 text-sm">Recent payment activity will be shown here.</p>
+          </div>
+          <button onClick={() => navigate('/dashboard')} className="btn-soft px-4 py-2 text-sm">
+            Back
           </button>
         </div>
 
-        {/* History List */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-8 text-center text-gray-500">
-            <p>No transactions yet</p>
-            <p className="text-sm mt-2">Your transaction history will appear here</p>
+        <div className="ui-panel mb-4 p-4">
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-full bg-cyan-700 px-4 py-1.5 text-sm font-semibold text-white">All</button>
+            <button className="btn-soft rounded-full px-4 py-1.5 text-sm">Sent</button>
+            <button className="btn-soft rounded-full px-4 py-1.5 text-sm">Received</button>
+            <button className="btn-soft rounded-full px-4 py-1.5 text-sm">Failed</button>
           </div>
+        </div>
+
+        <div className="ui-panel p-10 text-center">
+          <p className="text-lg font-semibold text-slate-800">No Transactions Yet</p>
+          <p className="mt-1 text-sm text-slate-500">Your transaction history will appear once you start sending or receiving money.</p>
+          <Link to="/transfer" className="btn-brand mt-6 inline-flex px-6 py-2.5 text-sm">
+            Send Money Now
+          </Link>
         </div>
       </div>
     </div>

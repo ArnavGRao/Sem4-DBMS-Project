@@ -1,29 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
+import { buildAccountVpa, requestJson } from '../lib/api';
 
 const Register = () => {
   const navigate = useNavigate();
   const { login } = useUser();
+  const { showError, showSuccess } = useToast();
   const [formData, setFormData] = useState({
-    fullName: '',
     mobileNumber: '',
-    email: '',
     password: '',
+    confirmPassword: '',
   });
   const [vpa, setVpa] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
 
-  // Auto-generate VPA based on mobile number
+  const primaryVpa = formData.mobileNumber.length === 10
+    ? buildAccountVpa(formData.mobileNumber, 'primary', 1)
+    : '';
+
   useEffect(() => {
-    if (formData.mobileNumber.length === 10) {
-      const generatedVpa = `${formData.mobileNumber}@yourbank`;
-      setVpa(generatedVpa);
-    } else {
-      setVpa('');
-    }
-  }, [formData.mobileNumber]);
+    setVpa(primaryVpa);
+  }, [primaryVpa]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -35,109 +36,92 @@ const Register = () => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
-    // Basic validation
-    if (!formData.fullName || !formData.mobileNumber || !formData.email || !formData.password) {
-      setError('All fields are required');
+    // Validation
+    if (!formData.mobileNumber || !formData.password || !formData.confirmPassword) {
+      showError('All fields are required');
       setLoading(false);
       return;
     }
 
     if (formData.mobileNumber.length !== 10 || !/^\d{10}$/.test(formData.mobileNumber)) {
-      setError('Mobile number must be 10 digits');
+      showError('Mobile number must be 10 digits');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      showError('Password must be at least 6 characters');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      showError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    if (!agreeToTerms) {
+      showError('Please accept the terms and conditions');
       setLoading(false);
       return;
     }
 
     try {
-      // API call placeholder - replace with actual backend endpoint
-      const response = await fetch('http://localhost:8000/api/users/register', {
+      const registration = await requestJson('/api/users/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          first_name: formData.fullName,
-          mobile_number: formData.mobileNumber,
-          email: formData.email,
+          phone: formData.mobileNumber,
           password: formData.password,
-          vpa: vpa,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Registration failed');
-      }
+      const account = await requestJson('/api/accounts/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: registration.user_id,
+          vpa: primaryVpa,
+          initial_balance: 0,
+        }),
+      });
 
-      const data = await response.json();
+      const accounts = [{
+        id: account.account_id,
+        name: 'Primary Account',
+        vpa: primaryVpa,
+      }];
 
-      const accounts = Array.isArray(data.accounts) && data.accounts.length > 0
-        ? data.accounts
-        : [{
-            id: 'primary',
-            name: 'Primary Account',
-            vpa: data.vpa || vpa,
-          }];
-
-      // Update context with new user data
       login({
-        id: data.user_id,
-        firstName: formData.fullName,
-        email: formData.email,
+        id: registration.user_id,
+        mobileNumber: formData.mobileNumber,
         accounts,
         activeAccountId: accounts[0]?.id || null,
       }, 'user');
 
+      showSuccess('Account created successfully! Redirecting...');
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.');
+      showError(err.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          {/* Logo/Title */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-600">UPI</h1>
-            <p className="text-gray-600 text-sm mt-1">Create New Account</p>
+    <div className="app-shell grid place-items-center">
+      <div className="page-enter w-full max-w-xl">
+        <section className="ui-panel p-6 text-left sm:p-8">
+          <div className="mb-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Sign up</p>
+            <h2 className="ui-title mt-2 text-3xl">Create account</h2>
+            <p className="ui-subtle mt-2 text-sm">Set up your profile in less than a minute.</p>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6 text-sm">
-              {error}
-            </div>
-          )}
-
-          {/* Registration Form */}
           <form onSubmit={handleRegister} className="space-y-4">
-            {/* Full Name Input */}
             <div>
-              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
-              </label>
-              <input
-                type="text"
-                id="fullName"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleChange}
-                placeholder="Enter your full name"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            {/* Mobile Number Input */}
-            <div>
-              <label htmlFor="mobileNumber" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="mobileNumber" className="mb-1.5 block text-sm font-semibold text-slate-700">
                 Mobile Number
               </label>
               <input
@@ -148,79 +132,89 @@ const Register = () => {
                 onChange={handleChange}
                 placeholder="10-digit mobile number"
                 maxLength="10"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="ui-input"
                 required
               />
             </div>
 
-            {/* VPA Display (Read-only) */}
             {vpa && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Your VPA
-                </label>
-                <div className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 font-semibold text-sm">
-                  {vpa}
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Auto-generated based on your mobile number</p>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700">Generated VPA</p>
+                <p className="mt-1 text-sm font-semibold text-emerald-900">{vpa}</p>
               </div>
             )}
 
-            {/* Email Input */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="text-xs font-semibold text-cyan-700"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
               <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="Enter your email"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 id="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Enter your password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Minimum 6 characters"
+                className="ui-input"
                 required
               />
             </div>
 
-            {/* Register Button */}
+            <div>
+              <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-semibold text-slate-700">
+                Confirm Password
+              </label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="confirmPassword"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Re-enter password"
+                className="ui-input"
+                required
+              />
+            </div>
+
+            <label className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                id="agreeToTerms"
+                checked={agreeToTerms}
+                onChange={(e) => setAgreeToTerms(e.target.checked)}
+                className="mt-0.5"
+                required
+              />
+              <span>
+                I agree to the <span className="font-semibold text-cyan-700">Terms & Conditions</span>.
+              </span>
+            </label>
+
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 mt-6"
+              className="btn-brand mt-2 flex w-full items-center justify-center gap-2 px-4 py-3"
             >
-              {loading && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              )}
-              {loading ? 'Creating Account...' : 'Register'}
+              {loading && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
 
-          {/* Login Link */}
-          <p className="text-center text-gray-600 text-sm mt-6">
-            Already have an account?{' '}
-            <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-              Login here
-            </Link>
-          </p>
-        </div>
+          <div className="my-6 h-px bg-slate-200" />
+
+          <Link to="/login" className="btn-soft block w-full px-4 py-3 text-center text-sm">
+            Sign In Instead
+          </Link>
+        </section>
       </div>
     </div>
   );

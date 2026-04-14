@@ -12,10 +12,10 @@ export const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="app-shell grid min-h-screen place-items-center px-4">
+        <div className="ui-panel page-enter w-full max-w-sm p-8 text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-cyan-700" />
+          <p className="mt-4 text-sm font-semibold text-slate-600">Preparing your workspace...</p>
         </div>
       </div>
     );
@@ -42,10 +42,10 @@ export const AdminRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="app-shell grid min-h-screen place-items-center px-4">
+        <div className="ui-panel page-enter w-full max-w-sm p-8 text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-cyan-700" />
+          <p className="mt-4 text-sm font-semibold text-slate-600">Loading admin console...</p>
         </div>
       </div>
     );
@@ -72,10 +72,10 @@ export const AuthRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="app-shell grid min-h-screen place-items-center px-4">
+        <div className="ui-panel page-enter w-full max-w-sm p-8 text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-cyan-700" />
+          <p className="mt-4 text-sm font-semibold text-slate-600">Checking your session...</p>
         </div>
       </div>
     );

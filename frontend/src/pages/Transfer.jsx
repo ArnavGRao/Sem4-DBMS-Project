@@ -1,17 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
+import { getAccountDetails, requestJson } from '../lib/api';
+import Breadcrumb from '../components/Breadcrumb';
 
 const Transfer = () => {
-  const { user } = useUser();
+  const { user, updateBalance, refreshAccountBalance } = useUser();
+  const { showSuccess, showError } = useToast();
   const [formData, setFormData] = useState({
     toVpa: '',
     amount: '',
     remarks: '',
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   const accounts = Array.isArray(user?.accounts) ? user.accounts : [];
   const activeAccount = useMemo(
@@ -32,140 +34,140 @@ const Transfer = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
 
     if (!activeAccount?.vpa) {
-      setError('No sender account selected. Create/select an account first.');
+      showError('No sender account selected. Create/select an account first.');
       return;
     }
 
     if (!formData.toVpa || !formData.amount) {
-      setError('Beneficiary VPA and amount are required.');
+      showError('Beneficiary VPA and amount are required.');
       return;
     }
 
     const amountAsNumber = Number(formData.amount);
     if (Number.isNaN(amountAsNumber) || amountAsNumber <= 0) {
-      setError('Amount must be greater than 0.');
+      showError('Amount must be greater than 0.');
+      return;
+    }
+
+    if (formData.toVpa === activeAccount.vpa) {
+      showError('Cannot transfer to your own account.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/transactions/transfer', {
+      await requestJson('/api/transactions/transfer', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          from_vpa: activeAccount.vpa,
-          to_vpa: formData.toVpa,
+          sender_vpa: activeAccount.vpa,
+          receiver_vpa: formData.toVpa,
           amount: amountAsNumber,
-          remarks: formData.remarks,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Transfer failed');
+      // Auto-refresh balance from backend after successful transfer.
+      try {
+        const latestAccount = await getAccountDetails(activeAccount.id);
+        refreshAccountBalance(activeAccount.id, parseFloat(latestAccount.balance));
+      } catch {
+        // Fallback to optimistic update if refresh fails.
+        const currentBalance = Number(activeAccount.balance || 0);
+        const newBalance = currentBalance - amountAsNumber;
+        updateBalance(activeAccount.id, newBalance);
       }
 
-      const data = await response.json();
-      setSuccess(`Transfer successful. Reference: ${data.transaction_id || data.reference || 'N/A'}`);
+      showSuccess(`Transfer of ₹${amountAsNumber.toFixed(2)} completed successfully!`);
       setFormData({
         toVpa: '',
         amount: '',
         remarks: '',
       });
     } catch (err) {
-      setError(err.message || 'Transfer failed.');
+      showError(err.message || 'Transfer failed.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Send Money</h1>
-          <Link to="/dashboard" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-            Back to Home
+    <div className="app-shell">
+      <div className="page-enter mx-auto w-full max-w-2xl">
+        <Breadcrumb
+          items={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Send Money' },
+          ]}
+        />
+
+        <div className="mb-4 flex items-center justify-between">
+          <h1 className="ui-title text-3xl">Send Money</h1>
+          <Link to="/dashboard" className="text-sm font-semibold text-cyan-700 hover:text-cyan-800">
+            Back to Dashboard
           </Link>
         </div>
 
-        <div className="bg-white rounded-lg p-6 shadow">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4 text-sm">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md mb-4 text-sm">
-              {success}
-            </div>
-          )}
-
+        <div className="ui-panel p-6 sm:p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">From Account (VPA)</label>
-              <div className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 text-sm">
-                {activeAccount?.vpa || 'No account found'}
-              </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">From Account (VPA)</label>
+              <div className="text-sm font-semibold text-slate-800">{activeAccount?.vpa || 'No account found'}</div>
             </div>
 
             <div>
-              <label htmlFor="toVpa" className="block text-sm font-medium text-gray-700 mb-1">Beneficiary VPA</label>
+              <label htmlFor="toVpa" className="mb-1.5 block text-sm font-semibold text-slate-700">Beneficiary VPA</label>
               <input
                 id="toVpa"
                 name="toVpa"
                 type="text"
                 value={formData.toVpa}
                 onChange={handleChange}
-                placeholder="beneficiary@bank"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="beneficiary@upi"
+                className="ui-input"
                 required
               />
             </div>
 
-            <div>
-              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-              <input
-                id="amount"
-                name="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={formData.amount}
-                onChange={handleChange}
-                placeholder="0.00"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="amount" className="mb-1.5 block text-sm font-semibold text-slate-700">Amount (₹)</label>
+                <input
+                  id="amount"
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={formData.amount}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                  className="ui-input"
+                  required
+                />
+              </div>
 
-            <div>
-              <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-1">Remarks (optional)</label>
-              <input
-                id="remarks"
-                name="remarks"
-                type="text"
-                value={formData.remarks}
-                onChange={handleChange}
-                placeholder="e.g. lunch split"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div>
+                <label htmlFor="remarks" className="mb-1.5 block text-sm font-semibold text-slate-700">Remarks</label>
+                <input
+                  id="remarks"
+                  name="remarks"
+                  type="text"
+                  value={formData.remarks}
+                  onChange={handleChange}
+                  placeholder="Optional note"
+                  className="ui-input"
+                />
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-60"
+              className="btn-brand mt-2 flex w-full items-center justify-center gap-2 px-4 py-3"
             >
-              {loading ? 'Transferring...' : 'Transfer Now'}
+              {loading && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+              {loading ? 'Processing...' : 'Transfer Now'}
             </button>
           </form>
         </div>

@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
+import { useToast } from '../context/ToastContext';
+import { requestJson } from '../lib/api';
 
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useUser();
+  const { showError, showSuccess } = useToast();
   const [formData, setFormData] = useState({
     vpa: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,75 +25,57 @@ const Login = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError('');
     setLoading(true);
 
     try {
-      // API call placeholder - replace with actual backend endpoint
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const data = await requestJson('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          vpa: formData.vpa,
+          identifier: formData.vpa,
           password: formData.password,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Invalid credentials');
-      }
-
-      const data = await response.json();
-
       const accounts = Array.isArray(data.accounts) && data.accounts.length > 0
         ? data.accounts
-        : [{
-            id: 'primary',
-            name: 'Primary Account',
-            vpa: data.vpa,
-          }];
+        : data.vpa
+          ? [{
+              id: 'primary',
+              name: 'Primary Account',
+              vpa: data.vpa,
+            }]
+          : [];
       
-      // Update context with received user data
       login({
         id: data.user_id,
-        firstName: data.first_name,
-        email: data.email,
+        displayName: data.mobile_number || formData.vpa,
+        mobileNumber: data.mobile_number || formData.vpa,
         accounts,
-        activeAccountId: accounts[0]?.id || null,
+        activeAccountId: data.active_account_id || accounts[0]?.id || null,
       }, 'user');
 
+      showSuccess('Logged in successfully! Redirecting...');
       navigate('/dashboard');
-    } catch (err) {
-      setError(err.message || 'Login failed. Please try again.');
+    } catch {
+      showError('Invalid credentials');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-md p-8">
-          {/* Logo/Title */}
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-blue-600">UPI</h1>
-            <p className="text-gray-600 text-sm mt-1">P2P Fund Transfer</p>
+    <div className="app-shell grid place-items-center">
+      <div className="page-enter w-full max-w-xl">
+        <section className="ui-panel p-6 text-left sm:p-8">
+          <div className="mb-7">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Welcome back</p>
+            <h2 className="ui-title mt-2 text-3xl">Sign in</h2>
+            <p className="ui-subtle mt-2 text-sm">Use your VPA or mobile number to continue.</p>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6 text-sm">
-              {error}
-            </div>
-          )}
-
-          {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* VPA or Mobile Number Input */}
             <div>
-              <label htmlFor="vpa" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="vpa" className="mb-1.5 block text-sm font-semibold text-slate-700">
                 VPA or Mobile Number
               </label>
               <input
@@ -99,57 +84,55 @@ const Login = () => {
                 name="vpa"
                 value={formData.vpa}
                 onChange={handleChange}
-                placeholder="mobilenumber@yourbank or 10-digit mobile"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="9876543210@upi"
+                className="ui-input"
                 required
               />
             </div>
 
-            {/* Password/PIN Input */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password/PIN
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="text-xs font-semibold text-cyan-700"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 id="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Enter your PIN"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your password"
+                className="ui-input"
                 required
               />
             </div>
 
-            {/* Forgot PIN Link */}
-            <div className="text-right">
-              <Link to="#" className="text-sm text-blue-600 hover:text-blue-700">
-                Forgot PIN?
-              </Link>
-            </div>
-
-            {/* Login Button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              className="btn-brand mt-2 flex w-full items-center justify-center gap-2 px-4 py-3"
             >
-              {loading && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              )}
-              {loading ? 'Logging in...' : 'Login'}
+              {loading && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
-          {/* Sign Up Link */}
-          <p className="text-center text-gray-600 text-sm mt-6">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-              Register here
-            </Link>
-          </p>
-        </div>
+          <div className="my-6 h-px bg-slate-200" />
+
+          <Link to="/register" className="btn-soft block w-full px-4 py-3 text-center text-sm">
+            Create New Account
+          </Link>
+
+          <p className="ui-subtle mt-5 text-center text-xs">Encrypted sign-in and secure session management.</p>
+        </section>
       </div>
     </div>
   );
