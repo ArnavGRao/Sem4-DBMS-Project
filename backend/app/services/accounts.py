@@ -9,7 +9,7 @@ from app.models.requests import AccountCreateRequest
 
 def create_account(payload: AccountCreateRequest) -> int:
     query = """
-    INSERT INTO accounts (user_id, vpa, balance, status)
+    INSERT INTO Accounts (user_id, vpa, balance, status)
     VALUES (%s, %s, %s, %s)
     """
     user_id = payload.user_id
@@ -22,7 +22,7 @@ def create_account(payload: AccountCreateRequest) -> int:
         with get_connection() as connection:
             cursor = connection.cursor(prepared=True)
             try:
-                cursor.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
+                cursor.execute("SELECT user_id FROM Users WHERE user_id = %s", (user_id,))
                 user = cursor.fetchone()
                 if not user:
                     raise ServiceError(status_code=404, detail="User does not exist for the provided user_id.")

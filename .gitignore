@@ -42,3 +42,7 @@ frontend/build/
 # Misc
 *.swp
 *.swo
+
+# db backups
+emergency_full_backup.sql
+safe_logic_only.sql

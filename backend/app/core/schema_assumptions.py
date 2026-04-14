@@ -5,7 +5,7 @@ All assumed table and column names for Task 4 are centralized in this file so th
 be updated in one place after Task 2 DDL is finalized.
 """
 
-USERS_TABLE = "users"
+USERS_TABLE = "Users"
 USERS_COLUMNS = {
     "full_name": "full_name",
     "email": "email",
@@ -13,7 +13,7 @@ USERS_COLUMNS = {
     "password_hash": "password_hash",
 }
 
-ACCOUNTS_TABLE = "accounts"
+ACCOUNTS_TABLE = "Accounts"
 ACCOUNTS_COLUMNS = {
     "user_id": "user_id",
     "vpa": "vpa",

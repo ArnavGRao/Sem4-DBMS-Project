@@ -124,7 +124,11 @@ BEGIN
         
     UPDATE Users
         SET last_active = CURRENT_TIMESTAMP
-        WHERE user_id = NEW.sender_account_id;
+        WHERE user_id = (
+            SELECT user_id
+            FROM Accounts
+            WHERE account_id = NEW.sender_account_id
+        );
 END */;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;
@@ -201,6 +205,19 @@ BEGIN
     DECLARE v_sender_id INT;
     DECLARE v_receiver_id INT;
     DECLARE current_tx_id INT;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+
+        IF current_tx_id IS NOT NULL THEN
+            UPDATE Transactions
+                SET status = 'Failed'
+                WHERE transaction_id = current_tx_id;
+            COMMIT;
+        END IF;
+
+        RESIGNAL;
+    END;
     
     IF p_sender_vpa = p_receiver_vpa THEN
         SIGNAL SQLSTATE '45000'
@@ -220,45 +237,30 @@ BEGIN
         SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'Invalid vpa provided.';
     END IF;
-    
-    transaction_block: BEGIN
-        
-        DECLARE EXIT HANDLER FOR SQLEXCEPTION
-        BEGIN
-            ROLLBACK;
-            
-            UPDATE Transactions
-                SET Status = 'Failed'
-                WHERE transaction_id = current_tx_id;
-            
-            SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'Transaction failed.';
-        END;
-        
-        INSERT INTO Transactions
-            (sender_account_id, receiver_account_id, amount, status)
-            VALUES (v_sender_id, v_receiver_id, p_amount, 'Pending');
-            
-        SET current_tx_id = LAST_INSERT_ID();
-        
-        START TRANSACTION;
-        
-        UPDATE Accounts
-            SET balance = balance - p_amount 
-            WHERE account_id = v_sender_id;
-        UPDATE Accounts
-            SET balance = balance + p_amount
-            WHERE account_id = v_receiver_id;
-            
-        UPDATE Transactions
-            SET status = 'Completed'
-            WHERE transaction_id = current_tx_id;
-            
-        COMMIT;
-        
-        SELECT 'Transaction committed successfully.' AS 'Result';
-        
-    END transaction_block;
+
+    INSERT INTO Transactions
+        (sender_account_id, receiver_account_id, amount, status)
+        VALUES (v_sender_id, v_receiver_id, p_amount, 'Pending');
+
+    SET current_tx_id = LAST_INSERT_ID();
+    COMMIT;
+
+    START TRANSACTION;
+
+    UPDATE Accounts
+        SET balance = balance - p_amount
+        WHERE account_id = v_sender_id;
+    UPDATE Accounts
+        SET balance = balance + p_amount
+        WHERE account_id = v_receiver_id;
+
+    UPDATE Transactions
+        SET status = 'Completed'
+        WHERE transaction_id = current_tx_id;
+
+    COMMIT;
+
+    SELECT 'Transaction committed successfully.' AS 'Result';
 END ;;
 DELIMITER ;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;

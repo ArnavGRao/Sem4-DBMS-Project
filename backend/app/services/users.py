@@ -11,7 +11,7 @@ from app.models.requests import UserRegistrationRequest
 
 def register_user(payload: UserRegistrationRequest) -> int:
     query = """
-    INSERT INTO users (mobile_number, password_hash)
+    INSERT INTO Users (mobile_number, password_hash)
     VALUES (%s, %s)
     """
     hashed_password = bcrypt.hashpw(payload.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
