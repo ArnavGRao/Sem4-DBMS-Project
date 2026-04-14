@@ -43,13 +43,22 @@ const Login = () => {
       }
 
       const data = await response.json();
+
+      const accounts = Array.isArray(data.accounts) && data.accounts.length > 0
+        ? data.accounts
+        : [{
+            id: 'primary',
+            name: 'Primary Account',
+            vpa: data.vpa,
+          }];
       
       // Update context with received user data
       login({
         id: data.user_id,
-        vpa: data.vpa,
         firstName: data.first_name,
         email: data.email,
+        accounts,
+        activeAccountId: accounts[0]?.id || null,
       }, 'user');
 
       navigate('/dashboard');

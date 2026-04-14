@@ -53,7 +53,7 @@ const Register = () => {
 
     try {
       // API call placeholder - replace with actual backend endpoint
-      const response = await fetch('http://localhost:8000/api/auth/register', {
+      const response = await fetch('http://localhost:8000/api/users/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -74,12 +74,21 @@ const Register = () => {
 
       const data = await response.json();
 
+      const accounts = Array.isArray(data.accounts) && data.accounts.length > 0
+        ? data.accounts
+        : [{
+            id: 'primary',
+            name: 'Primary Account',
+            vpa: data.vpa || vpa,
+          }];
+
       // Update context with new user data
       login({
         id: data.user_id,
-        vpa: data.vpa,
         firstName: formData.fullName,
         email: formData.email,
+        accounts,
+        activeAccountId: accounts[0]?.id || null,
       }, 'user');
 
       navigate('/dashboard');
