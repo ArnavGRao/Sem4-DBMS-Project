@@ -1,18 +1,21 @@
 import re
 from decimal import Decimal
+from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class UserRegistrationRequest(BaseModel):
-    full_name: str = Field(min_length=2, max_length=100)
-    email: str = Field(min_length=5, max_length=255)
     phone: str = Field(min_length=10, max_length=15)
     password: str = Field(min_length=8, max_length=128)
+    full_name: Optional[str] = Field(default=None, min_length=2, max_length=100)
+    email: Optional[str] = Field(default=None, min_length=5, max_length=255)
 
     @field_validator("full_name")
     @classmethod
-    def validate_full_name(cls, value: str) -> str:
+    def validate_full_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("Full name cannot be empty.")
@@ -20,7 +23,9 @@ class UserRegistrationRequest(BaseModel):
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, value: str) -> str:
+    def validate_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         cleaned = value.strip().lower()
         if not re.fullmatch(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", cleaned):
             raise ValueError("Invalid email format.")
@@ -67,3 +72,13 @@ class TransferRequest(BaseModel):
         if self.sender_vpa == self.receiver_vpa:
             raise ValueError("Sender and receiver VPA must be different.")
         return self
+
+
+class LoginRequest(BaseModel):
+    identifier: str = Field(min_length=3, max_length=100)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class AddBalanceRequest(BaseModel):
+    account_id: int = Field(gt=0)
+    amount: Decimal = Field(gt=Decimal("0.00"), max_digits=14, decimal_places=2)

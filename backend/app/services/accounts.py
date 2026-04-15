@@ -51,3 +51,82 @@ def create_account(payload: AccountCreateRequest) -> int:
             status_code=500,
             detail=f"Database failure during account creation: {err.msg}",
         ) from err
+
+
+def add_balance(account_id: int, amount: object) -> dict[str, object]:
+    """Add balance to an account (test/admin feature)"""
+    query = """
+    UPDATE Accounts
+    SET balance = balance + %s
+    WHERE account_id = %s
+    """
+
+    try:
+        with get_connection() as connection:
+            cursor = connection.cursor(dictionary=True)
+            try:
+                # Verify account exists
+                cursor.execute("SELECT account_id, balance FROM Accounts WHERE account_id = %s", (account_id,))
+                account = cursor.fetchone()
+                if not account:
+                    raise ServiceError(status_code=404, detail="Account not found.")
+
+                # Update balance
+                cursor.execute(query, (amount, account_id))
+                connection.commit()
+
+                # Fetch updated balance
+                cursor.execute("SELECT account_id, balance FROM Accounts WHERE account_id = %s", (account_id,))
+                updated_account = cursor.fetchone()
+
+                return {
+                    "account_id": updated_account["account_id"],
+                    "new_balance": str(updated_account["balance"]),
+                }
+            finally:
+                cursor.close()
+    except ServiceError:
+        raise
+    except mysql.connector.Error as err:
+        raise ServiceError(
+            status_code=500,
+            detail=f"Database failure while adding balance: {err.msg}",
+        ) from err
+
+
+def get_account_details(account_id: int) -> dict[str, object]:
+    """Get current account details including balance"""
+    try:
+        with get_connection() as connection:
+            cursor = connection.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    """
+                    SELECT account_id, user_id, vpa, balance, status, created_at
+                    FROM Accounts
+                    WHERE account_id = %s
+                    """,
+                    (account_id,),
+                )
+                account = cursor.fetchone()
+                
+                if not account:
+                    raise ServiceError(status_code=404, detail="Account not found.")
+                
+                return {
+                    "account_id": account["account_id"],
+                    "user_id": account["user_id"],
+                    "vpa": account["vpa"],
+                    "balance": str(account["balance"]),
+                    "status": account["status"],
+                    "created_at": str(account["created_at"]),
+                }
+            finally:
+                cursor.close()
+    except ServiceError:
+        raise
+    except mysql.connector.Error as err:
+        raise ServiceError(
+            status_code=500,
+            detail=f"Database failure while fetching account: {err.msg}",
+        ) from err
