@@ -28,6 +28,16 @@ const Register = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === 'mobileNumber') {
+      const digitsOnly = value.replace(/\D/g, '');
+      setFormData((prev) => ({
+        ...prev,
+        [name]: digitsOnly,
+      }));
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -124,17 +134,22 @@ const Register = () => {
               <label htmlFor="mobileNumber" className="mb-1.5 block text-sm font-semibold text-slate-700">
                 Mobile Number
               </label>
-              <input
-                type="text"
-                id="mobileNumber"
-                name="mobileNumber"
-                value={formData.mobileNumber}
-                onChange={handleChange}
-                placeholder="10-digit mobile number"
-                maxLength="10"
-                className="ui-input"
-                required
-              />
+              <div className="flex items-center">
+                <span className="px-3 py-2 bg-gray-100 border border-r-0 rounded-l-md text-sm text-gray-600">
+                  +91
+                </span>
+                <input
+                  type="text"
+                  id="mobileNumber"
+                  name="mobileNumber"
+                  value={formData.mobileNumber}
+                  onChange={handleChange}
+                  placeholder="10-digit mobile number"
+                  maxLength="10"
+                  className="ui-input rounded-l-none"
+                  required
+                />
+              </div>
             </div>
 
             {vpa && (
