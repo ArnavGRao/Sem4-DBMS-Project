@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.core.service_errors import ServiceError
 from app.models.requests import TransferRequest
-from app.services.transactions import process_transfer
+from app.services.transactions import get_transaction_history, process_transfer
 
 router = APIRouter()
 
@@ -17,3 +17,11 @@ def transfer(payload: TransferRequest) -> dict[str, str]:
     return {
         "message": "Transfer successful"
     }
+
+
+@router.get("/history/{vpa}")
+def get_history(vpa: str):
+    try:
+        return get_transaction_history(vpa)
+    except ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc

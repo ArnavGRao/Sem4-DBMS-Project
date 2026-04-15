@@ -164,3 +164,40 @@ git push origin feature/<short-description>
 ```
 
 Then update or create your Pull Request on GitHub.
+
+# Task 6: Transaction History API
+
+Endpoint:
+GET /api/transactions/history/{vpa}
+
+Description:
+Retrieves a user's transaction history using a database view. Instead of performing JOIN operations in the backend, the system queries a pre-defined database view that already combines transaction and account data.
+
+Implementation:
+- A database view named vw_User_Transaction_History is created.
+- The view joins Transactions with Accounts twice to expose sender_vpa and receiver_vpa.
+- The backend queries this view using parameterized SQL.
+- Results are sorted in descending order of created_at (latest first).
+
+Response Structure:
+- transaction_id
+- sender_vpa
+- receiver_vpa
+- amount
+- status
+- created_at
+- type
+
+Transaction Type Logic:
+- If sender_vpa matches the requested VPA, the transaction type is DEBIT.
+- If receiver_vpa matches the requested VPA, the transaction type is CREDIT.
+
+Key Design Decisions:
+- The backend does not perform JOIN logic.
+- The database handles data composition via the view.
+- The backend focuses on validation, formatting, and response generation.
+
+Benefits:
+- Cleaner backend code.
+- Improved query readability.
+- Better separation of concerns between the database and API layer.

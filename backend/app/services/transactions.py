@@ -40,3 +40,54 @@ def process_transfer(payload: TransferRequest) -> None:
             raise ServiceError(400, "Insufficient balance") from err
 
         raise ServiceError(500, f"Database error: {message}") from err
+
+def get_transaction_history(vpa: str) -> list[dict[str, object]]:
+    query = """
+    SELECT * FROM vw_User_Transaction_History
+    WHERE sender_vpa = %s OR receiver_vpa = %s
+    ORDER BY created_at DESC
+    """
+
+    if not vpa:
+        raise ServiceError(400, "VPA is required")
+
+    vpa = vpa.strip()
+    if not vpa:
+        raise ServiceError(400, "VPA is required")
+
+    try:
+        with get_connection() as connection:
+            cursor = connection.cursor(dictionary=True)
+            try:
+                cursor.execute(query, (vpa, vpa))
+                rows = cursor.fetchall()
+
+                transactions: list[dict[str, object]] = []
+                for row in rows:
+                    if row["sender_vpa"] == vpa:
+                        txn_type = "DEBIT"
+                    elif row["receiver_vpa"] == vpa:
+                        txn_type = "CREDIT"
+                    else:
+                        continue
+
+                    transactions.append(
+                        {
+                            "transaction_id": row["transaction_id"],
+                            "sender_vpa": row["sender_vpa"],
+                            "receiver_vpa": row["receiver_vpa"],
+                            "amount": str(row["amount"]),
+                            "status": row["status"],
+                            "created_at": str(row["created_at"]),
+                            "type": txn_type,
+                        }
+                    )
+
+                return transactions
+            finally:
+                cursor.close()
+    except ServiceError:
+        raise
+    except mysql.connector.Error as err:
+        message = err.msg if hasattr(err, "msg") else str(err)
+        raise ServiceError(500, f"Database error: {message}") from err
