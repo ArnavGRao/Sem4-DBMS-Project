@@ -88,7 +88,10 @@ const Dashboard = () => {
       setRecentLoading(true);
       try {
         const history = await fetchTransactionHistory(activeAccount.vpa);
-        setRecentTransactions(Array.isArray(history) ? history.slice(0, 8) : []);
+        const visibleHistory = Array.isArray(history)
+          ? history.filter((txn) => !(String(txn.status || '').toUpperCase() === 'FAILED' && txn.type === 'CREDIT'))
+          : [];
+        setRecentTransactions(visibleHistory.slice(0, 8));
       } catch {
         setRecentTransactions([]);
       } finally {
@@ -309,6 +312,12 @@ const Dashboard = () => {
             <div className="space-y-2">
               {recentTransactions.map((txn) => {
                 const isCredit = txn.type === 'CREDIT';
+                const isFailed = String(txn.status || '').toUpperCase() === 'FAILED';
+                const amountColorClass = isFailed
+                  ? 'text-slate-500'
+                  : isCredit
+                    ? 'text-emerald-600'
+                    : 'text-rose-600';
                 return (
                   <div key={txn.transaction_id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
                     <div>
@@ -318,7 +327,7 @@ const Dashboard = () => {
                       <p className="text-xs text-slate-500">{formatDateTime(txn.created_at)}</p>
                     </div>
                     <div className="text-right">
-                      <p className={`text-sm font-semibold ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <p className={`text-sm font-semibold ${amountColorClass}`}>
                         {isCredit ? '+' : '-'}{formatCurrency(txn.amount)}
                       </p>
                       <p className="text-xs uppercase tracking-wide text-slate-500">{txn.status}</p>

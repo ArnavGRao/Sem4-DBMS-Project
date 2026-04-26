@@ -40,18 +40,23 @@ const History = () => {
     loadHistory();
   }, [activeAccount?.vpa]);
 
+  const visibleTransactions = useMemo(
+    () => transactions.filter((txn) => !(String(txn.status || '').toUpperCase() === 'FAILED' && txn.type === 'CREDIT')),
+    [transactions]
+  );
+
   const filteredTransactions = useMemo(() => {
     if (filter === 'sent') {
-      return transactions.filter((txn) => txn.type === 'DEBIT');
+      return visibleTransactions.filter((txn) => txn.type === 'DEBIT');
     }
     if (filter === 'received') {
-      return transactions.filter((txn) => txn.type === 'CREDIT');
+      return visibleTransactions.filter((txn) => txn.type === 'CREDIT');
     }
     if (filter === 'failed') {
-      return transactions.filter((txn) => String(txn.status || '').toUpperCase() === 'FAILED');
+      return visibleTransactions.filter((txn) => String(txn.status || '').toUpperCase() === 'FAILED');
     }
-    return transactions;
-  }, [transactions, filter]);
+    return visibleTransactions;
+  }, [visibleTransactions, filter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
 
@@ -185,6 +190,12 @@ const History = () => {
             <div className="space-y-2">
               {currentPageTransactions.map((txn) => {
                 const isCredit = txn.type === 'CREDIT';
+                const isFailed = String(txn.status || '').toUpperCase() === 'FAILED';
+                const amountColorClass = isFailed
+                  ? 'text-slate-500'
+                  : isCredit
+                    ? 'text-emerald-600'
+                    : 'text-rose-600';
                 return (
                   <div key={txn.transaction_id} className="flex flex-col gap-2 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -195,7 +206,7 @@ const History = () => {
                     </div>
 
                     <div className="text-left sm:text-right">
-                      <p className={`text-sm font-semibold ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <p className={`text-sm font-semibold ${amountColorClass}`}>
                         {isCredit ? '+' : '-'}{formatCurrency(txn.amount)}
                       </p>
                       <p className="text-xs uppercase tracking-wide text-slate-500">{txn.status}</p>
