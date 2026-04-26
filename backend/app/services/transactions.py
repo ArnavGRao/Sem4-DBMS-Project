@@ -83,6 +83,9 @@ def get_transaction_history(vpa: str) -> list[dict[str, object]]:
                         }
                     )
 
+                if not transactions:
+                    raise ServiceError(404, "No transactions found for this VPA")
+
                 return transactions
             finally:
                 cursor.close()
