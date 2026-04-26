@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import Breadcrumb from '../components/Breadcrumb';
-import { buildAccountVpa, requestJson, addBalanceToAccount, getAccountDetails } from '../lib/api';
+import { buildAccountVpa, requestJson, addBalanceToAccount, getAccountDetails, fetchTransactionHistory } from '../lib/api';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -15,6 +15,8 @@ const Dashboard = () => {
   const [addBalanceAmount, setAddBalanceAmount] = useState('');
   const [addBalanceLoading, setAddBalanceLoading] = useState(false);
   const [refreshingBalance, setRefreshingBalance] = useState(false);
+  const [recentTransactions, setRecentTransactions] = useState([]);
+  const [recentLoading, setRecentLoading] = useState(false);
 
     const { showSuccess, showError } = useToast();
 
@@ -76,8 +78,59 @@ const Dashboard = () => {
     accounts[0] ||
     null;
 
-  const handleAccountChange = (e) => {
-    setActiveAccount(e.target.value);
+  useEffect(() => {
+    const loadRecentTransactions = async () => {
+      if (!activeAccount?.vpa) {
+        setRecentTransactions([]);
+        return;
+      }
+
+      setRecentLoading(true);
+      try {
+        const history = await fetchTransactionHistory(activeAccount.vpa);
+        setRecentTransactions(Array.isArray(history) ? history.slice(0, 8) : []);
+      } catch {
+        setRecentTransactions([]);
+      } finally {
+        setRecentLoading(false);
+      }
+    };
+
+    loadRecentTransactions();
+  }, [activeAccount?.vpa]);
+
+  const formatCurrency = (amount) => {
+    const value = Number(amount || 0);
+    return `₹ ${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const formatDateTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const handleAccountChange = async (e) => {
+    const selectedAccountId = e.target.value;
+    setActiveAccount(selectedAccountId);
+
+    setRefreshingBalance(true);
+    try {
+      const details = await getAccountDetails(selectedAccountId);
+      refreshAccountBalance(selectedAccountId, parseFloat(details.balance));
+    } catch (err) {
+      console.error('Failed to sync selected account balance:', err);
+    } finally {
+      setRefreshingBalance(false);
+    }
   };
 
   const buildNewAccountVpa = (type) => {
@@ -241,8 +294,40 @@ const Dashboard = () => {
         </div>
 
         <div className="ui-panel mt-4 p-5">
-          <h3 className="text-base font-semibold text-slate-900">Recent Activity</h3>
-          <p className="mt-4 rounded-xl bg-slate-50 py-8 text-center text-sm text-slate-500">No recent transactions</p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-base font-semibold text-slate-900">Recent Activity</h3>
+            <Link to="/history" className="text-sm font-semibold text-cyan-700 hover:text-cyan-800">
+              View all
+            </Link>
+          </div>
+
+          {recentLoading ? (
+            <p className="mt-4 rounded-xl bg-slate-50 py-8 text-center text-sm text-slate-500">Loading transactions...</p>
+          ) : recentTransactions.length === 0 ? (
+            <p className="mt-4 rounded-xl bg-slate-50 py-8 text-center text-sm text-slate-500">No recent transactions</p>
+          ) : (
+            <div className="space-y-2">
+              {recentTransactions.map((txn) => {
+                const isCredit = txn.type === 'CREDIT';
+                return (
+                  <div key={txn.transaction_id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {isCredit ? `From ${txn.sender_vpa}` : `To ${txn.receiver_vpa}`}
+                      </p>
+                      <p className="text-xs text-slate-500">{formatDateTime(txn.created_at)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-semibold ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {isCredit ? '+' : '-'}{formatCurrency(txn.amount)}
+                      </p>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">{txn.status}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

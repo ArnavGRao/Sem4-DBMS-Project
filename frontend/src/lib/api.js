@@ -85,6 +85,20 @@ export const transferMoney = async (transferData) => {
 };
 
 /**
+ * Fetch transaction history for a VPA
+ * @param {string} vpa - Sender/receiver VPA
+ * @returns {Promise<Array>} Array of transaction records
+ */
+export const fetchTransactionHistory = async (vpa) => {
+  if (!vpa) {
+    throw new Error('VPA is required');
+  }
+
+  const params = new URLSearchParams({ vpa });
+  return requestJson(`/api/transactions/history/?${params.toString()}`);
+};
+
+/**
  * Create a new account for a user
  * @param {object} accountData - { user_id, vpa, initial_balance? }
  * @returns {Promise<object>} Created account details

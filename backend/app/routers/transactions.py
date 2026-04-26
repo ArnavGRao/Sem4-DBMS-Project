@@ -7,6 +7,13 @@ from app.services.transactions import get_transaction_history, process_transfer
 router = APIRouter()
 
 
+def _fetch_history(vpa: str):
+    try:
+        return get_transaction_history(vpa)
+    except ServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
 @router.post("/transfer")
 def transfer(payload: TransferRequest) -> dict[str, str]:
     try:
@@ -19,9 +26,11 @@ def transfer(payload: TransferRequest) -> dict[str, str]:
     }
 
 
-@router.get("/history/{vpa}")
+@router.get("/history/")
 def get_history(vpa: str):
-    try:
-        return get_transaction_history(vpa)
-    except ServiceError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return _fetch_history(vpa)
+
+
+@router.get("/history/{vpa}")
+def get_history_legacy(vpa: str):
+    return _fetch_history(vpa)
