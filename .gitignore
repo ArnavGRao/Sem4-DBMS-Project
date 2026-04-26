@@ -33,6 +33,10 @@ backend/myenv/
 # Logs
 *.log
 
+# DB backups
+emergency_full_backup.sql
+safe_logic_only.sql
+
 # Node/frontend
 node_modules/
 frontend/node_modules/

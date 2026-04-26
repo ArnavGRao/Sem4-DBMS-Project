@@ -180,6 +180,23 @@ CREATE TABLE `Users` (
 --
 
 --
+-- View structure for view `vw_User_Transaction_History`
+--
+
+DROP VIEW IF EXISTS `vw_User_Transaction_History`;
+CREATE ALGORITHM=UNDEFINED VIEW `vw_User_Transaction_History` AS
+SELECT
+    t.`transaction_id` AS `transaction_id`,
+    sender.`vpa` AS `sender_vpa`,
+    receiver.`vpa` AS `receiver_vpa`,
+    t.`amount` AS `amount`,
+    t.`status` AS `status`,
+    t.`created_at` AS `created_at`
+FROM `Transactions` t
+JOIN `Accounts` sender ON sender.`account_id` = t.`sender_account_id`
+JOIN `Accounts` receiver ON receiver.`account_id` = t.`receiver_account_id`;
+
+--
 -- Dumping routines for database 'UPI_System'
 --
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
