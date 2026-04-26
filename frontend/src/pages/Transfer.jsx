@@ -11,7 +11,6 @@ const Transfer = () => {
   const [formData, setFormData] = useState({
     toVpa: '',
     amount: '',
-    remarks: '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -83,7 +82,6 @@ const Transfer = () => {
       setFormData({
         toVpa: '',
         amount: '',
-        remarks: '',
       });
     } catch (err) {
       showError(err.message || 'Transfer failed.');
@@ -104,7 +102,7 @@ const Transfer = () => {
 
         <div className="mb-4 flex items-center justify-between">
           <h1 className="ui-title text-3xl">Send Money</h1>
-          <Link to="/dashboard" className="text-sm font-semibold text-cyan-700 hover:text-cyan-800">
+          <Link to="/dashboard" className="btn-soft px-4 py-2 text-sm">
             Back to Dashboard
           </Link>
         </div>
@@ -130,35 +128,20 @@ const Transfer = () => {
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="amount" className="mb-1.5 block text-sm font-semibold text-slate-700">Amount (₹)</label>
-                <input
-                  id="amount"
-                  name="amount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={formData.amount}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                  className="ui-input"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="remarks" className="mb-1.5 block text-sm font-semibold text-slate-700">Remarks</label>
-                <input
-                  id="remarks"
-                  name="remarks"
-                  type="text"
-                  value={formData.remarks}
-                  onChange={handleChange}
-                  placeholder="Optional note"
-                  className="ui-input"
-                />
-              </div>
+            <div>
+              <label htmlFor="amount" className="mb-1.5 block text-sm font-semibold text-slate-700">Amount (₹)</label>
+              <input
+                id="amount"
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={formData.amount}
+                onChange={handleChange}
+                placeholder="0.00"
+                className="ui-input"
+                required
+              />
             </div>
 
             <button

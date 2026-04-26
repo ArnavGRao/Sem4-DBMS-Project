@@ -121,3 +121,15 @@ a {
   background: #f8fbfe;
   border-color: #c6d8e9;
 }
+
+button,
+.btn-soft,
+.btn-brand {
+  cursor: pointer;
+}
+
+button:disabled,
+.btn-soft:disabled,
+.btn-brand:disabled {
+  cursor: not-allowed;
+}

@@ -99,6 +99,27 @@ export const fetchTransactionHistory = async (vpa) => {
 };
 
 /**
+ * Verify credentials for the currently logged-in user
+ * @param {object} payload - { identifier, password }
+ * @returns {Promise<boolean>} true if credentials are valid
+ */
+export const verifyUserPassword = async ({ identifier, password }) => {
+  if (!identifier || !password) {
+    return false;
+  }
+
+  try {
+    await requestJson('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier, password }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Create a new account for a user
  * @param {object} accountData - { user_id, vpa, initial_balance? }
  * @returns {Promise<object>} Created account details

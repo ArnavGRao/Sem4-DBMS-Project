@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { useToast } from '../context/ToastContext';
 import Breadcrumb from '../components/Breadcrumb';
 import { buildAccountVpa, requestJson, addBalanceToAccount, getAccountDetails, fetchTransactionHistory } from '../lib/api';
+import { getHiddenTransactionIds } from '../lib/transactionPrivacy';
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, setActiveAccount, addAccount, logout, updateBalance, refreshAccountBalance } = useUser();
-  const location = useLocation();
   const [creatingType, setCreatingType] = useState('');
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [showAddBalanceModal, setShowAddBalanceModal] = useState(false);
@@ -88,10 +88,15 @@ const Dashboard = () => {
       setRecentLoading(true);
       try {
         const history = await fetchTransactionHistory(activeAccount.vpa);
+        const hiddenIds = new Set(getHiddenTransactionIds(user?.id, activeAccount?.vpa));
         const visibleHistory = Array.isArray(history)
-          ? history.filter((txn) => !(String(txn.status || '').toUpperCase() === 'FAILED' && txn.type === 'CREDIT'))
+          ? history.filter((txn) => {
+              const isReceiverFailed = String(txn.status || '').toUpperCase() === 'FAILED' && txn.type === 'CREDIT';
+              const isHidden = hiddenIds.has(String(txn.transaction_id));
+              return !isReceiverFailed && !isHidden;
+            })
           : [];
-        setRecentTransactions(visibleHistory.slice(0, 8));
+        setRecentTransactions(visibleHistory.slice(0, 4));
       } catch {
         setRecentTransactions([]);
       } finally {
@@ -100,7 +105,7 @@ const Dashboard = () => {
     };
 
     loadRecentTransactions();
-  }, [activeAccount?.vpa]);
+  }, [activeAccount?.vpa, user?.id]);
 
   const formatCurrency = (amount) => {
     const value = Number(amount || 0);
@@ -178,28 +183,7 @@ const Dashboard = () => {
   return (
     <div className="app-shell">
       <div className="page-enter mx-auto w-full max-w-5xl">
-        {location.pathname === '/dashboard' && <Breadcrumb items={[{ label: 'Dashboard' }]} />}
-
-        <div className="ui-panel mb-4 p-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Link
-              to="/dashboard"
-              className={`rounded-xl py-2 text-center text-sm font-semibold transition-colors ${
-                location.pathname === '/dashboard' ? 'bg-cyan-700 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              Home
-            </Link>
-            <Link
-              to="/history"
-              className={`rounded-xl py-2 text-center text-sm font-semibold transition-colors ${
-                location.pathname === '/history' ? 'bg-cyan-700 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              History
-            </Link>
-          </div>
-        </div>
+        <Breadcrumb items={[{ label: 'Dashboard' }]} />
 
         <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-white/65 p-4">
           <div>
@@ -299,7 +283,7 @@ const Dashboard = () => {
         <div className="ui-panel mt-4 p-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-base font-semibold text-slate-900">Recent Activity</h3>
-            <Link to="/history" className="text-sm font-semibold text-cyan-700 hover:text-cyan-800">
+            <Link to="/history" className="btn-soft px-4 py-2 text-sm">
               View all
             </Link>
           </div>
